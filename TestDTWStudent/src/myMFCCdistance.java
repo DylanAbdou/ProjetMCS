@@ -36,8 +36,7 @@ public class myMFCCdistance extends MFCCHelper {
 			coef[i] = mfcc.getCoef(i) - noise.getCoef(i);
 		}
 		
-		MFCC mfccRetour = new MFCC(coef, mfcc.getSignal());
-		return mfccRetour;
+		return new MFCC(coef, mfcc.getSignal());
 	}
 
 }

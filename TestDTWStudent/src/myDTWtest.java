@@ -389,4 +389,31 @@ public class myDTWtest {
 			 
 			 afficherMatriceDeConfusion(nomsFichiersBase,nomsFichiersX);
 		}
+		
+		// Application de l'ACP
+		public void baseToAcp(MFCC[] base) {
+
+			float[] g = new float[base[0].getLength()];
+			float[][] xc = new float[base.length][base[0].getLength()] ;
+			float[][] xcT = new float[base.length][base[0].getLength()] ;
+
+			for (int i = 0 ; i < xc.length ; i++)
+				for (int j = 0 ; j < xc[0].length ; j++) {
+					xc[i][j] = base[i].getCoef(j) ;
+					g[j] += xc[i][j] ;
+				}
+	
+			for (int i = 0 ; i < g.length ; i++)
+				g[i] /= xc.length ;
+
+			for (int i = 0 ; i < xc.length ; i++)
+				for (int j = 0 ; j < xc[0].length ; j++)
+					xc[i][j] -= g[j] ;
+			
+			for (int i = 0 ; i < xc.length ; i++)
+				for (int j = 0 ; j < xc[0].length ; j++)
+					xcT[j][i] = xc[i][j] ;
+
+			
+		}
 }
