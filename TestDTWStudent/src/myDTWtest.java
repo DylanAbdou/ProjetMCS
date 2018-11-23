@@ -7,6 +7,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.math3.linear.EigenDecomposition;
+import org.apache.commons.math3.linear.MatrixUtils;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.linear.RealVector;
+import org.apache.commons.math3.stat.correlation.Covariance;
 import org.omg.Messaging.SyncScopeHelper;
 
 import fr.enseeiht.danck.voice_analyzer.DTWHelper;
@@ -52,10 +57,10 @@ public class myDTWtest {
 			int MFCCLength;
 			DTWHelper myDTWHelper= new myDTW();
 			DTWHelper DTWHelperDefault= new DTWHelperDefault();
-			 
+
 			// Chemin de recherche des fichiers sons
 		    String base = "/test_res/audio/";
-		    
+
 		    // Appel a l'extracteur par defaut (calcul des MFCC)
 		    Extractor extractor = Extractor.getExtractor();
 		    
@@ -391,29 +396,98 @@ public class myDTWtest {
 		}
 		
 		// Application de l'ACP
-		public void baseToAcp(MFCC[] base) {
+		public RealVector[] baseToAcp(Field[] f_base) {
 
-			float[] g = new float[base[0].getLength()];
-			float[][] xc = new float[base.length][base[0].getLength()] ;
-			float[][] xcT = new float[base.length][base[0].getLength()] ;
-
+			MFCC[] base = new MFCC[f_base.length] ;
+			double[] g = new double[base[0].getLength()] ;
+			double[][] xc = new double[base.length][base[0].getLength()] ;
+			double[][] xcT = new double[base[0].getLength()][base.length] ;
+			double[] valeursPropres = new double[base.length] ;
+			float[] moyMFCC = new float[13] ;
+			float[] moySignal ;
+			
+			// Prerequis : moyenne des MFCC de chaque ordre
+			for (int i = 0 ; i < f_base.length ; i++) {
+				moySignal = new float[f_base[i].getMFCC(0).getSignal().length] ;
+				for (int j = 0 ; j < f_base[i].getLength() ; j++) {
+					for (int z = 0 ; z < 13 ; z++)
+						moyMFCC[z] += f_base[i].getMFCC(j).getCoef(z) ;
+					for (int z = 0 ; z < moySignal.length ; z++)
+						moySignal[z] += f_base[i].getMFCC(j).getSignal()[z] ;
+				}
+				for (int z = 0 ; z < 13 ; z++)
+					moyMFCC[z] /= f_base[i].getLength() ;
+				for (int z = 0 ; z < moySignal.length ; z++)
+					moySignal[z] /= f_base[i].getLength() ;
+				
+				base[i] = new MFCC(moyMFCC,moySignal) ;
+				
+			}		
+					
+			// 1. Calcul du vecteur moyen g
 			for (int i = 0 ; i < xc.length ; i++)
 				for (int j = 0 ; j < xc[0].length ; j++) {
 					xc[i][j] = base[i].getCoef(j) ;
 					g[j] += xc[i][j] ;
 				}
-	
+			
 			for (int i = 0 ; i < g.length ; i++)
 				g[i] /= xc.length ;
-
+			
+			// 2. Calcul de Xc = X - g
 			for (int i = 0 ; i < xc.length ; i++)
 				for (int j = 0 ; j < xc[0].length ; j++)
 					xc[i][j] -= g[j] ;
 			
+			// 3. Calcul de la transposee XcT de Xc
 			for (int i = 0 ; i < xc.length ; i++)
 				for (int j = 0 ; j < xc[0].length ; j++)
 					xcT[j][i] = xc[i][j] ;
 
+			// 4. Calcul de la matrice de covariance
+			RealMatrix cov = MatrixUtils.createRealMatrix(xcT).multiply(MatrixUtils.createRealMatrix(xc)) ;
+			cov = cov.scalarMultiply(base.length) ;
 			
+			// 5. Calcul des valeurs propres associées
+			EigenDecomposition a = new EigenDecomposition(cov) ;
+			valeursPropres = a.getRealEigenvalues() ;
+			
+			// Tableau contenant l'indice des 3 plus grandes vp
+			int[] maxVP = getMaxVP(valeursPropres) ;
+			
+			// 6. Calcul des vecteurs propres associés aux 3 plus grandes vp
+			RealVector[] vecteursPropres = new RealVector[maxVP.length] ;
+			
+			for (int i = 0 ; i < maxVP.length ; i++)
+				vecteursPropres[i] = a.getEigenvector(maxVP[i]) ;
+			
+			return vecteursPropres ;
+		}
+
+		private int[] getMaxVP(double[] valeursPropres) {
+			int[] troisPlusGrandes = new int[3] ;
+			double max = -100 ;
+			int iMax = 0 ;
+			
+			for (int i = 0 ; i < 3 ; i++)
+				troisPlusGrandes[i] = -1 ;
+			
+			for (int j = 0 ; j < 3 ; j++) {
+				for (int i = 0 ; i < valeursPropres.length ; i++)
+					if (!unMax(i, troisPlusGrandes))
+						if (valeursPropres[i] > max) {
+							max = valeursPropres[i] ;
+							iMax = i ;
+						}
+				troisPlusGrandes[j] = iMax ;
+			}
+			return troisPlusGrandes ;
+		}
+
+		private boolean unMax(int indi, int[] troisPlusGrandes) {
+			for (int i = 0 ; i < troisPlusGrandes.length ; i++)
+				if (troisPlusGrandes[i] == indi)
+					return true ;
+			return false ;
 		}
 }
